@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أنواع الصخور - عرض تفاعلي</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #0a0a1a;
+            color: #e0e0e0;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Viewport للشاشات مع peek effect */
+        .viewport {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: visible;
+        }
+        
+        /* شاشات العرض مع GPU acceleration */
+        .screen {
+            width: 90vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 5vw;
+            transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.7s ease,
+                        filter 0.7s ease;
+            will-change: transform, opacity, filter;
+            transform-style: preserve-3d;
+            backface-visibility: hidden;
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* حالات الشاشة */
+        .screen.active {
+            transform: translate3d(0, 0, 0) scale(1);
+            opacity: 1;
+            filter: blur(0px);
+            z-index: 10;
+            pointer-events: auto;
+        }
+        
+        .screen.peek-left {
+            transform: translate3d(-85vw, 0, 0) scale(0.9);
+            opacity: 0.4;
+            filter: blur(3px);
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .screen.peek-right {
+            transform: translate3d(85vw, 0, 0) scale(0.9);
+            opacity: 0.4;
+            filter: blur(3px);
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .screen.peek-top {
+            transform: translate3d(0, -85vh, 0) scale(0.9);
+            opacity: 0.4;
+            filter: blur(3px);
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .screen.peek-bottom {
+            transform: translate3d(0, 85vh, 0) scale(0.9);
+            opacity: 0.4;
+            filter: blur(3px);
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .screen.hidden {
+            transform: translate3d(200vw, 0, 0);
+            opacity: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+        
+        /* خلفيات ديناميكية */
+        .main-screen {
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+        }
+        
+        .igneous-content {
+            background: linear-gradient(135deg, #2d1a1a, #3e1616, #60200f);
+        }
+        
+        .sedimentary-content {
+            background: linear-gradient(135deg, #2d2a1a, #3e3a16, #60540f);
+        }
+        
+        .metamorphic-content {
+            background: linear-gradient(135deg, #2a1a2d, #3a163e, #540f60);
+        }
+        
+        /* المحتوى */
+        .content {
+            width: 90%;
+            height: 90%;
+            max-width: 1400px;
+            max-height: 900px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .media-item {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .media-item img,
+        .media-item video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+        
+        /* المناطق التفاعلية */
+        .hotspot {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 2px dashed rgba(255, 255, 255, 0.6);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            opacity: 0.7;
+            text-align: center;
+            padding: 15px;
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+        
+        .hotspot:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+            opacity: 1;
+            transform: scale(1.05);
+        }
+        
+        .hotspot.igneous {
+            top: 45%;
+            left: 8%;
+            width: 140px;
+            height: 140px;
+        }
+        
+        .hotspot.sedimentary {
+            top: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 140px;
+            height: 140px;
+        }
+        
+        .hotspot.metamorphic {
+            top: 45%;
+            right: 8%;
+            width: 140px;
+            height: 140px;
+        }
+        
+        /* أزرار التنقل */
+        .nav-btn {
+            position: absolute;
+            background-color: rgba(52, 152, 219, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 65px;
+            height: 65px;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+            z-index: 30;
+        }
+        
+        .nav-btn:hover {
+            background-color: rgba(41, 128, 185, 1);
+            transform: scale(1.1);
+        }
+        
+        .igneous-content .back-btn {
+            top: 50%;
+            right: 30px;
+            transform: translateY(-50%);
+        }
+        
+        .igneous-content .next-btn {
+            top: 50%;
+            left: 30px;
+            transform: translateY(-50%);
+        }
+        
+        .sedimentary-content .back-btn {
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+        }
+        
+        .sedimentary-content .next-btn {
+            left: 50%;
+            top: 30px;
+            transform: translateX(-50%);
+        }
+        
+        .metamorphic-content .back-btn {
+            top: 50%;
+            left: 30px;
+            transform: translateY(-50%);
+        }
+        
+        .metamorphic-content .next-btn {
+            top: 50%;
+            right: 30px;
+            transform: translateY(-50%);
+        }
+        
+        .home-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(44, 62, 80, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+        
+        .home-btn:hover {
+            background-color: rgba(26, 37, 48, 1);
+            transform: scale(1.1);
+        }
+        
+        @media (max-width: 768px) {
+            .screen {
+                width: 95vw;
+                left: 2.5vw;
+            }
+            
+            .hotspot {
+                width: 110px;
+                height: 110px;
+                font-size: 13px;
+            }
+            
+            .content {
+                width: 92%;
+                height: 92%;
+            }
+            
+            .nav-btn {
+                width: 55px;
+                height: 55px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="viewport">
+            <!-- الشاشة الرئيسية -->
+            <div class="screen main-screen active" id="main-screen">
+                <div class="content">
+                    <div class="media-item">
+                        <img src="infographic.png" alt="أنواع الصخور">
+                        
+                        <div class="hotspot igneous" data-type="igneous">
+                            الصخور النارية
+                        </div>
+                        
+                        <div class="hotspot sedimentary" data-type="sedimentary">
+                            الصخور الرسوبية
+                        </div>
+                        
+                        <div class="hotspot metamorphic" data-type="metamorphic">
+                            الصخور المتحولة
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- الصخور النارية -->
+            <div class="screen hidden igneous-content" id="igneous-image">
+                <div class="content">
+                    <button class="nav-btn back-btn" data-back="main-screen">→</button>
+                    <button class="nav-btn next-btn" data-next="igneous-video">←</button>
+                    
+                    <div class="media-item">
+                        <img src="صورة ناري.png" alt="الصخور النارية">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="screen hidden igneous-content" id="igneous-video">
+                <div class="content">
+                    <button class="nav-btn back-btn" data-back="igneous-image">→</button>
+                    
+                    <div class="media-item">
+                        <video controls autoplay muted loop>
+                            <source src="وكأنه اتى في زمانه.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- الصخور الرسوبية -->
+            <div class="screen hidden sedimentary-content" id="sedimentary-image">
+                <div class="content">
+                    <button class="nav-btn back-btn" data-back="main-screen">↓</button>
+                    <button class="nav-btn next-btn" data-next="sedimentary-video">↑</button>
+                    
+                    <div class="media-item">
+                        <img src="صورة رسوبي.png" alt="الصخور الرسوبية">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="screen hidden sedimentary-content" id="sedimentary-video">
+                <div class="content">
+                    <button class="nav-btn back-btn" data-back="sedimentary-image">↓</button>
+                    
+                    <div class="media-item">
+                        <video controls autoplay muted loop>
+                            <source src="وكأنه اتى في زمانه.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- الصخور المتحولة -->
+            <div class="screen hidden metamorphic-content" id="metamorphic-image">
+                <div class="content">
+                    <button class="nav-btn back-btn" data-back="main-screen">←</button>
+                    <button class="nav-btn next-btn" data-next="metamorphic-video">→</button>
+                    
+                    <div class="media-item">
+                        <img src="صورة متحولة.png" alt="الصخور المتحولة">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="screen hidden metamorphic-content" id="metamorphic-video">
+                <div class="content">
+                    <button class="nav-btn back-btn" data-back="metamorphic-image">←</button>
+                    
+                    <div class="media-item">
+                        <video controls autoplay muted loop>
+                            <source src="وكأنه اتى في زمانه.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="home-btn">⌂</button>
+    </div>
+
+    <script>
+        // خريطة الشاشات والعلاقات
+        const screenMap = {
+            'main-screen': {
+                left: 'igneous-image',
+                right: 'metamorphic-image',
+                top: 'sedimentary-image'
+            },
+            'igneous-image': {
+                left: 'igneous-video',
+                right: 'main-screen'
+            },
+            'igneous-video': {
+                right: 'igneous-image'
+            },
+            'sedimentary-image': {
+                top: 'sedimentary-video',
+                bottom: 'main-screen'
+            },
+            'sedimentary-video': {
+                bottom: 'sedimentary-image'
+            },
+            'metamorphic-image': {
+                left: 'main-screen',
+                right: 'metamorphic-video'
+            },
+            'metamorphic-video': {
+                left: 'metamorphic-image'
+            }
+        };
+
+        let currentScreen = 'main-screen';
+        
+        // تحديث حالات الشاشات
+        function updateScreenStates() {
+            const screens = document.querySelectorAll('.screen');
+            const neighbors = screenMap[currentScreen] || {};
+            
+            screens.forEach(screen => {
+                const id = screen.id;
+                screen.classList.remove('active', 'peek-left', 'peek-right', 'peek-top', 'peek-bottom', 'hidden');
+                
+                if (id === currentScreen) {
+                    screen.classList.add('active');
+                } else if (id === neighbors.left) {
+                    screen.classList.add('peek-left');
+                } else if (id === neighbors.right) {
+                    screen.classList.add('peek-right');
+                } else if (id === neighbors.top) {
+                    screen.classList.add('peek-top');
+                } else if (id === neighbors.bottom) {
+                    screen.classList.add('peek-bottom');
+                } else {
+                    screen.classList.add('hidden');
+                }
+            });
+        }
+        
+        // التنقل بين الشاشات
+        function navigateTo(targetId) {
+            if (targetId === currentScreen) return;
+            
+            // إيقاف الفيديوهات
+            document.querySelectorAll('video').forEach(v => {
+                v.pause();
+                v.currentTime = 0;
+            });
+            
+            currentScreen = targetId;
+            updateScreenStates();
+            
+            // تشغيل الفيديو
+            if (targetId.includes('video')) {
+                setTimeout(() => {
+                    const video = document.querySelector(`#${targetId} video`);
+                    if (video) {
+                        video.play().catch(() => {});
+                    }
+                }, 700);
+            }
+        }
+        
+        // تهيئة الأحداث
+        document.addEventListener('DOMContentLoaded', function() {
+            // المناطق التفاعلية
+            document.querySelectorAll('.hotspot').forEach(hotspot => {
+                hotspot.addEventListener('click', function() {
+                    const type = this.getAttribute('data-type');
+                    navigateTo(type + '-image');
+                });
+            });
+            
+            // أزرار التنقل
+            document.querySelectorAll('.nav-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const target = this.getAttribute('data-back') || this.getAttribute('data-next');
+                    if (target) navigateTo(target);
+                });
+            });
+            
+            // زر المنزل
+            document.querySelector('.home-btn').addEventListener('click', () => {
+                navigateTo('main-screen');
+            });
+            
+            // مفاتيح الاختصار
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'h' || e.key === 'H') {
+                    navigateTo('main-screen');
+                }
+            });
+            
+            // تهيئة أولية
+            updateScreenStates();
+        });
+    </script>
+</body>
+</html>
